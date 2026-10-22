@@ -167,6 +167,9 @@ echo 'OUTLOOK_SIGNATURE_HTML_FILE=/Users/you/.config/outlook/signature.html' >> 
 - `~/.afk/config/afk.env` is shared by every afk agent on the machine, so any
   agent sending through this CLI will sign as you. Export the variable per
   shell instead if that is not what you want.
+- **HTML signature files are trusted and inserted verbatim** (no sanitisation).
+  Treat them like the token cache: restrict write access to the file owner
+  (`chmod 600 ~/sig.html`). Do not point the variable at world-writable paths.
 
 ### Drafts
 | Command | Purpose |

@@ -138,7 +138,15 @@ export function appendTextSignature(content: string, sig: Signature): string {
   return head === '' ? tail : `${head}\n\n${tail}`;
 }
 
-/** Append an HTML signature, inside </body> when the body has one. */
+/**
+ * Append an HTML signature, inside </body> when the body has one.
+ *
+ * Trust boundary: `sig.html` is inserted verbatim without sanitisation.
+ * This is intentional — the file belongs to the user and may contain
+ * arbitrary HTML (images, inline styles, etc.). Treat it like the token
+ * cache: it should be writable only by its owner (`chmod 600`). Do not
+ * point this at untrusted or world-writable paths.
+ */
 function appendHtmlSignature(content: string, sig: Signature): string {
   const html =
     sig.html?.trim() ??
