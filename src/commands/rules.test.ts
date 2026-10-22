@@ -1,7 +1,6 @@
 /**
- * Tests for `outlook rules`. Mirrors me.test.ts — a real GraphClient from
- * makeCtx, with `client.get` stubbed via vi.spyOn. The injected fetchImpl
- * throws if any code path reaches the real network.
+ * Tests for `outlook rules list` and helpers. See rules-create.test.ts for
+ * the `create` subcommand tests.
  */
 
 import { describe, expect, it, vi } from 'vitest';
@@ -106,10 +105,12 @@ describe('rules list', () => {
     expect(output).toContain('no');
   });
 
-  it('throws UsageError for an unknown subcommand', async () => {
+  it('throws UsageError for an unknown subcommand with the expected message', async () => {
     const { ctx } = makeCtx(['bogus']);
 
-    await expect(rulesCommand.handler(ctx)).rejects.toBeInstanceOf(UsageError);
+    await expect(rulesCommand.handler(ctx)).rejects.toThrow(
+      /Expected "list" or "create"/,
+    );
   });
 
   it('never touches the network directly', async () => {
@@ -142,6 +143,11 @@ describe('summariseConditions', () => {
 
   it('summarises hasAttachments', () => {
     expect(summariseConditions({ hasAttachments: true })).toBe('has attachments');
+  });
+
+  it('summarises senderContains', () => {
+    const result = summariseConditions({ senderContains: ['@example.com'] });
+    expect(result).toBe('sender contains: @example.com');
   });
 });
 

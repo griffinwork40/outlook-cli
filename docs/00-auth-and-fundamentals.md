@@ -78,7 +78,7 @@ curl example:
 curl -X POST "https://login.microsoftonline.com/common/oauth2/v2.0/devicecode" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   --data-urlencode "client_id=00001111-aaaa-2222-bbbb-3333cccc4444" \
-  --data-urlencode "scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read"
+  --data-urlencode "scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite"
 ```
 
 ### Response (HTTP 200, JSON)
@@ -177,7 +177,7 @@ Only the `error` field's string value is stable/contractual. `error_description`
 ```json
 {
   "token_type": "Bearer",
-  "scope": "User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read profile openid email",
+  "scope": "User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite profile openid email",
   "expires_in": 3599,
   "access_token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiIsIng1dCI6Ik5HVEZ2ZEstZnl0aEV1Q...",
   "refresh_token": "AwABAAAAvPM1KaPlrEqdFSBzjqfTGAMxZGUTdM0t4B4...",
@@ -227,7 +227,7 @@ curl -X POST "https://login.microsoftonline.com/common/oauth2/v2.0/token" \
   --data-urlencode "client_id=00001111-aaaa-2222-bbbb-3333cccc4444" \
   --data-urlencode "grant_type=refresh_token" \
   --data-urlencode "refresh_token=AwABAAAAvPM1KaPlrEqdFSBzjqfTGAMxZGUTdM0t4B4..." \
-  --data-urlencode "scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read"
+  --data-urlencode "scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite"
 ```
 
 Response shape is identical to the initial token response (§3) — `access_token`, `token_type`, `expires_in`, `scope`, `refresh_token` (if `offline_access` requested), `id_token` (if `openid` requested).
@@ -247,7 +247,7 @@ The field-level description in the doc is stronger/more concrete than the "MAY" 
 ### Exact scope strings requested
 
 ```
-offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read
+offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite
 ```
 
 ### Do they need the full `https://graph.microsoft.com/` prefix?
@@ -256,8 +256,8 @@ offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read
 
 So both of these are equivalent for Graph scopes:
 ```
-scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read
-scope=offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.Read
+scope=offline_access User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite
+scope=offline_access https://graph.microsoft.com/User.Read https://graph.microsoft.com/Mail.ReadWrite https://graph.microsoft.com/Mail.Send https://graph.microsoft.com/MailboxSettings.ReadWrite
 ```
 
 `offline_access` (and `openid`/`profile`/`email`) are OIDC scopes and **never** take a resource prefix — they are resource-agnostic by definition.
@@ -272,11 +272,11 @@ Exception: if you ever combine a Graph scope with a **non-Graph** resource's sco
 | `User.Read` | Delegated | No | *"Allows users to sign-in to the app, and allows the app to read the profile of signed-in users. It also allows the app to read basic company information of signed-in users."* Also unlocks the `organization` resource's `id`/`displayName`/`verifiedDomains` for work/school accounts. |
 | `Mail.ReadWrite` | Delegated | No | *"Allows the app to create, read, update, and delete email in user mailboxes. Does not include permission to send mail."* |
 | `Mail.Send` | Delegated | No | *"Allows the app to send mail as users in the organization."* Per docs: *"With the `Mail.Send` permission, an app can send mail and save a copy to the user's Sent Items folder, even if the app isn't granted the `Mail.ReadWrite`… permission."* — i.e. `Mail.Send` alone is sufficient for `sendMail`/`send`; you don't strictly need `Mail.ReadWrite` too, but you do need it for listing/reading/updating drafts. |
-| `MailboxSettings.Read` | Delegated | No | *"Allows the app to the read user's mailbox settings. Does not include permission to send mail."* (timezone, working hours, automatic-replies config, etc. via `/me/mailboxSettings`) |
+| `MailboxSettings.ReadWrite` | Delegated | No | *"Allows the app to read and update user's mailbox settings."* Needed for `rules create`; `MailboxSettings.Read` suffices for read-only operations. |
 
 All five scopes above are confirmed **available for consent in personal Microsoft accounts** (each carries the MSA-eligible badge in the permissions reference) and confirmed valid for both work/school and personal accounts — consistent with using tenant `common`.
 
-Source: https://learn.microsoft.com/en-us/graph/permissions-reference (sections: Mail.Read, Mail.ReadWrite, Mail.Send, MailboxSettings.Read, User.Read — each fetched and cross-checked directly).
+Source: https://learn.microsoft.com/en-us/graph/permissions-reference (sections: Mail.Read, Mail.ReadWrite, Mail.Send, MailboxSettings.ReadWrite, User.Read — each fetched and cross-checked directly).
 
 ---
 
@@ -489,7 +489,7 @@ Flagging these explicitly per the research brief — do not treat any of the fol
 
 ## 10. Implementation checklist for the CLI
 
-1. **App registration (one-time, human step):** register an app, set **Supported account types → Accounts in any organizational directory and personal Microsoft accounts**, enable **Allow public client flows = Yes** (§6), grant delegated scopes `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.Read` (no admin consent needed per §5 — all are user-consentable). No redirect URI is needed for device-code flow.
+1. **App registration (one-time, human step):** register an app, set **Supported account types → Accounts in any organizational directory and personal Microsoft accounts**, enable **Allow public client flows = Yes** (§6), grant delegated scopes `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite` (no admin consent needed per §5 — all are user-consentable). No redirect URI is needed for device-code flow.
 2. **Auth module:**
    - `POST /devicecode` with `tenant=common` (§1, §2) → display `message`/`user_code`/`verification_uri` to the user.
    - Poll `POST /token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code` (§3) every `interval` seconds; handle all 5 polling codes including the undocumented-but-real `slow_down` (§9.1).

@@ -117,8 +117,18 @@ export async function composeMessage(
  *
  * Extracted from composeMessage so callers can run --to/--subject validation
  * and the 'Nothing to create' check BEFORE the signature file is even touched.
- * No-op when signature is undefined or the message has no content at all
- * (preserving the draft-create empty-guard semantics).
+ *
+ * Precondition: `args` must be the same ParsedArgs object that was used to
+ * build `message` (i.e. `ctx.args`). When the message has no body yet, the
+ * body's content-type is derived from `args.bool('html')`; if `args` were a
+ * different object the format could disagree with the rest of the message.
+ * Every current caller satisfies this by passing `ctx.args` directly.
+ *
+ * The `Object.keys(message).length === 0` guard exists for `draft create`:
+ * that command checks for an empty message and exits with "Nothing to create"
+ * before reaching the signature step. Returning early here preserves that
+ * check — `send` never reaches this branch because it validates --to and
+ * --subject first.
  */
 export function signMessage(
   message: ComposedMessage,

@@ -64,6 +64,7 @@ export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   'mark-unread': [],
   flag: [],
   unflag: [],
+  rules: ['name', 'folder', 'from', 'sender-contains', 'mark-read', 'stop-processing', 'enabled', 'sequence'],
 };
 
 /** Levenshtein, capped — only used to build a "did you mean" hint. */
