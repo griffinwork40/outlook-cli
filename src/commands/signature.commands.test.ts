@@ -158,3 +158,31 @@ describe('reply-family with a signature', () => {
     expect(post.mock.calls[0]?.[1]).toMatchObject({ comment: 'FYI' });
   });
 });
+
+describe('HTML-only signature config — plain-text surfaces reject loudly (F5 / R2.4)', () => {
+  let htmlOnlyEnv: Record<string, string>;
+
+  beforeAll(async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'outlook-htmlsig-'));
+    const htmlSig = join(dir, 'sig.html');
+    await writeFile(htmlSig, '<b>Griffin</b>');
+    htmlOnlyEnv = { OUTLOOK_SIGNATURE_HTML_FILE: htmlSig };
+  });
+
+  it('F5: send without --html throws UsageError mentioning OUTLOOK_SIGNATURE_FILE', async () => {
+    const { ctx } = makeCtx(
+      ['--to', 'a@example.com', '--subject', 'S', '--body', 'Hello'],
+      htmlOnlyEnv,
+    );
+    const err = await sendCommand.handler(ctx).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UsageError);
+    expect((err as Error).message).toContain('OUTLOOK_SIGNATURE_FILE');
+  });
+
+  it('R2.4: reply with no --body throws UsageError mentioning OUTLOOK_SIGNATURE_FILE', async () => {
+    const { ctx } = makeCtx(['MSG1'], htmlOnlyEnv);
+    const err = await replyCommand.handler(ctx).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(UsageError);
+    expect((err as Error).message).toContain('OUTLOOK_SIGNATURE_FILE');
+  });
+});
