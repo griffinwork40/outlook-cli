@@ -36,7 +36,7 @@ function fakeIdToken(claims: Record<string, unknown>): string {
 
 const TOKEN_BODY = {
   token_type: 'Bearer',
-  scope: 'User.Read Mail.ReadWrite Mail.Send MailboxSettings.Read',
+  scope: 'User.Read Mail.ReadWrite Mail.Send MailboxSettings.ReadWrite',
   expires_in: 3599,
   access_token: 'ACCESS_TOKEN_VALUE',
   refresh_token: 'REFRESH_TOKEN_VALUE',
@@ -70,7 +70,7 @@ describe('createAuthenticator — read-only grant mode', () => {
   // Restated as literals rather than imported from types.ts on purpose: these
   // are the scope sets we intend to request, so an accidental edit to
   // DEFAULT_SCOPES/READONLY_SCOPES must FAIL here rather than be followed.
-  const FULL_SCOPE_SET = ['offline_access', 'User.Read', 'Mail.ReadWrite', 'Mail.Send', 'MailboxSettings.Read'];
+  const FULL_SCOPE_SET = ['offline_access', 'User.Read', 'Mail.ReadWrite', 'Mail.Send', 'MailboxSettings.ReadWrite'];
   const READONLY_SCOPE_SET = ['offline_access', 'User.Read', 'Mail.Read', 'MailboxSettings.Read'];
 
   let dir: string;

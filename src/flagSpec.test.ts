@@ -36,6 +36,7 @@ import {
 } from './commands/reply.js';
 import { searchCommand } from './commands/search.js';
 import { sendCommand } from './commands/send.js';
+import { rulesCommand } from './commands/rules.js';
 
 /**
  * Rebuilt independently of cli.ts's (unexported) COMMANDS array, from each
@@ -61,6 +62,7 @@ const REGISTERED_COMMANDS = [
   markUnreadCommand,
   flagCommand,
   unflagCommand,
+  rulesCommand,
 ] as const;
 
 describe('assertKnownFlags — known flags pass', () => {
@@ -118,5 +120,28 @@ describe('COMMAND_FLAGS — completeness against the real command registry', () 
     for (const name of Object.keys(COMMAND_FLAGS)) {
       expect(registeredNames.has(name)).toBe(true);
     }
+  });
+});
+
+describe('assertKnownFlags — rules command (end-to-end flag validation)', () => {
+  it('accepts all flags used by rules list (json only)', () => {
+    expect(() => assertKnownFlags('rules', ['json'])).not.toThrow();
+    expect(() => assertKnownFlags('rules', ['dry-run'])).not.toThrow();
+  });
+
+  it('accepts all flags used by rules create', () => {
+    const createFlags = [
+      'name', 'folder', 'from', 'sender-contains',
+      'mark-read', 'stop-processing', 'enabled', 'sequence', 'dry-run',
+    ];
+    expect(() => assertKnownFlags('rules', createFlags)).not.toThrow();
+  });
+
+  it('rejects a typo like --dispaly-name and suggests --name', () => {
+    expect(() => assertKnownFlags('rules', ['dispaly-name'])).toThrow(UsageError);
+  });
+
+  it('rejects a completely unknown flag', () => {
+    expect(() => assertKnownFlags('rules', ['bogus'])).toThrow(UsageError);
   });
 });

@@ -139,7 +139,7 @@ At first sign-in Microsoft shows a consent screen listing these scopes:
 | `User.Read` | Read your own profile — powers `outlook me` |
 | `Mail.ReadWrite` | Read messages, manage drafts, flags, folders |
 | `Mail.Send` | Send, reply, forward |
-| `MailboxSettings.Read` | Read mailbox settings (time zone, etc.) |
+| `MailboxSettings.ReadWrite` | Read/write mailbox settings (needed for `rules create`) |
 
 These are **delegated** permissions: the CLI can only ever do what *you* can do,
 and only while your token is valid.
