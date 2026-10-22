@@ -152,7 +152,7 @@ async function runHtmlFlow(
   // Guard: check write scope via the create spec (same check guardMutation does).
   // We do it once here rather than once per step.
   const dummy = await guardMutation(ctx, specs.createSpec, async () => true);
-  if (dummy === undefined) return; // unreachable when dryRun=false, but satisfies TS
+  if (dummy === undefined) return; // unreachable — dryRun=true returns above; satisfies TS
 
   const draftId = await executeReplyDraft(ctx.client, {
     messageId,

@@ -291,10 +291,20 @@ describe('HTML-only signature config — plain-text surfaces reject loudly (F5 /
     expect((err as Error).message).toContain('OUTLOOK_SIGNATURE_FILE');
   });
 
-  it('R2.4: reply with no --body throws UsageError mentioning OUTLOOK_SIGNATURE_FILE', async () => {
-    const { ctx } = makeCtx(['MSG1'], htmlOnlyEnv);
-    const err = await replyCommand.handler(ctx).catch((e: unknown) => e);
-    expect(err).toBeInstanceOf(UsageError);
-    expect((err as Error).message).toContain('OUTLOOK_SIGNATURE_FILE');
+  it('R2.4: reply with HTML-only sig and no --body succeeds via three-step flow', async () => {
+    // PR #11: HTML-only signatures now use the createReply→PATCH→send flow,
+    // so the signature IS the body content — no text fallback required.
+    const { ctx, client } = makeCtx(['MSG1'], htmlOnlyEnv);
+    vi.spyOn(client, 'post').mockImplementation(async (path: string) => {
+      if (/createReply/i.test(path)) return { id: 'DRAFT_R24' } as Message as never;
+      return undefined as never;
+    });
+    vi.spyOn(client, 'get').mockResolvedValue({
+      id: 'DRAFT_R24',
+      body: { contentType: 'html', content: '<html><body></body></html>' },
+    } as Message as never);
+    vi.spyOn(client, 'patch').mockResolvedValue(undefined as never);
+
+    await expect(replyCommand.handler(ctx)).resolves.toBeUndefined();
   });
 });

@@ -302,7 +302,7 @@ describe('--dry-run with HTML signature', () => {
     return { ctx, client, fetchImpl, out };
   }
 
-  it('reply --dry-run shows all three requests without network calls', async () => {
+  it('reply --dry-run (text sig, no-html path) shows all three requests without network calls', async () => {
     const { ctx, fetchImpl, out } = makeCtx(['MSG1', '--body', 'hi', '--dry-run']);
     // Inject html sig directly by overriding resolveSignature via env isn't
     // straightforward, so we test the replyDraft flow explicitly via

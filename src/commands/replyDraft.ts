@@ -12,9 +12,14 @@
  * Threading headers (In-Reply-To, References) are set by step 1 and survive
  * the PATCH, so conversation threading is preserved.
  *
+ * Signature trust boundary: sig.html is operator-supplied (--signature <path>
+ * or OUTLOOK_SIGNATURE_HTML_FILE) and is treated as trusted content, the same
+ * boundary documented in signature.ts and README.md §Signature files.
+ * Never point these variables at world-writable or user-uploaded paths.
+ *
  * Atomicity: the flow is NOT atomic.  On PATCH or send failure we attempt to
- * DELETE the draft; if that also fails, the draft id is surfaced in the error
- * so the user can find and delete it manually.
+ * DELETE the draft; if that also fails, the user is instructed to run
+ * `outlook draft list` to locate and delete it manually.
  *
  * docs/02 §8: POST is never auto-retried; PATCH/DELETE use the normal retry
  * logic already in GraphClient.
@@ -111,7 +116,12 @@ export async function executeReplyDraft(
       `/me/messages/${encodeURIComponent(draftId)}`,
       { $select: 'id,body' },
     );
-    const draftBody: ItemBody = draftFull?.body ?? { contentType: 'html', content: '' };
+    if (!draftFull?.body) {
+      throw new OutlookCliError(
+        'Exchange returned a draft with no body. Cannot patch reply.',
+      );
+    }
+    const draftBody: ItemBody = draftFull.body;
     const patchBody = buildPatchBody(draftBody, opts.userText, opts.signature);
     await client.patch<unknown>(
       `/me/messages/${encodeURIComponent(draftId)}`,
@@ -141,7 +151,7 @@ export async function executeReplyDraft(
       throw new OutlookCliError(
         `Failed to send reply (${base}). ` +
           `Cleanup also failed (${cleanMsg}). ` +
-          `A draft was left behind — id: ${draftId}`,
+          'A draft was left behind (ORPHAN) — run `outlook draft list` to find and delete it.',
       );
     }
 
@@ -243,7 +253,9 @@ function buildTextInsertion(
   const newContent = head === '' ? sigBlock : `${head}\n\n${sigBlock}`;
 
   // Look for Exchange's plain-text quote separator.
-  const sepMatch = draftContent.match(/^-{3,}.*?Original Message.*?-{3,}/im);
+  // Use a structural pattern (---…text…---) rather than English "Original Message"
+  // so localized variants (German, French, Japanese, etc.) are matched too.
+  const sepMatch = draftContent.match(/^-{3,}[^-\r\n][^\r\n]*-{3,}/im);
   if (sepMatch?.index !== undefined) {
     return `${newContent}\n\n${draftContent.slice(sepMatch.index)}`;
   }
@@ -258,5 +270,6 @@ function escapeHtml(s: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
