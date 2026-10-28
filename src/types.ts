@@ -107,6 +107,26 @@ export interface UserProfile {
   jobTitle?: string | null;
 }
 
+/**
+ * Microsoft Graph v1.0 contact resource (GET /me/contacts).
+ * Users must re-login (`outlook auth logout && outlook auth login`) to
+ * pick up the new Contacts.Read scope after upgrading to this version.
+ */
+export interface Contact {
+  id: string;
+  displayName?: string | null;
+  givenName?: string | null;
+  surname?: string | null;
+  emailAddresses?: EmailAddress[];
+  mobilePhone?: string | null;
+  businessPhones?: string[];
+  homePhones?: string[];
+  companyName?: string | null;
+  jobTitle?: string | null;
+  department?: string | null;
+  personalNotes?: string | null;
+}
+
 /** Envelope returned by every Graph collection endpoint. */
 export interface GraphCollection<T> {
   '@odata.context'?: string;
@@ -235,6 +255,8 @@ export const DEFAULT_SCOPES = [
   'Mail.ReadWrite',
   'Mail.Send',
   'MailboxSettings.ReadWrite',
+  'Contacts.Read',
+  'Contacts.ReadWrite',
 ] as const;
 
 /**

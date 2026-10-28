@@ -17,6 +17,7 @@ import { UsageError } from './errors.js';
 
 import { attachmentsCommand } from './commands/attachments.js';
 import { authCommand } from './commands/auth.js';
+import { contactsCommand } from './commands/contacts.js';
 import { draftCommand } from './commands/draft.js';
 import {
   flagCommand,
@@ -63,6 +64,7 @@ const REGISTERED_COMMANDS = [
   flagCommand,
   unflagCommand,
   rulesCommand,
+  contactsCommand,
 ] as const;
 
 describe('assertKnownFlags — known flags pass', () => {
@@ -143,5 +145,19 @@ describe('assertKnownFlags — rules command (end-to-end flag validation)', () =
 
   it('rejects a completely unknown flag', () => {
     expect(() => assertKnownFlags('rules', ['bogus'])).toThrow(UsageError);
+  });
+});
+
+describe('assertKnownFlags — contacts command (end-to-end flag validation)', () => {
+  it('accepts all flags used by contacts list (top, all, limit, select, filter)', () => {
+    expect(() => assertKnownFlags('contacts', ['top', 'all', 'limit', 'select', 'filter'])).not.toThrow();
+  });
+
+  it('rejects a typo like --tpo and suggests --top', () => {
+    expect(() => assertKnownFlags('contacts', ['tpo'])).toThrow(UsageError);
+  });
+
+  it('rejects a completely unknown flag', () => {
+    expect(() => assertKnownFlags('contacts', ['bogus'])).toThrow(UsageError);
   });
 });

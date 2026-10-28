@@ -52,6 +52,7 @@ export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
   search: ['limit', 'all', 'folder'],
   folders: ['parent', 'all', 'name'],
   attachments: ['all', 'out', 'force'],
+  contacts: ['top', 'all', 'limit', 'select', 'filter'],
   send: [...COMPOSE_FLAGS, 'save-sent'],
   reply: ['body', 'signature'],
   'reply-all': ['body', 'signature'],
