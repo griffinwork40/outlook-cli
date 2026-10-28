@@ -9,6 +9,7 @@
 
 import type {
   Attachment,
+  Contact,
   MailFolder,
   Message,
   Recipient,
@@ -213,5 +214,99 @@ export function renderProfile(profile: UserProfile): string {
   ];
   if (profile.jobTitle) lines.push(`Job title: ${profile.jobTitle}`);
   lines.push(`Id: ${profile.id}`);
+  return lines.join('\n');
+}
+
+// ── Contact rendering ────────────────────────────────────────────────
+
+const NAME_WIDTH = 24;
+const PHONE_WIDTH = 18;
+const EMAIL_WIDTH = 28;
+const COMPANY_WIDTH = 20;
+
+/** First non-empty phone across mobile → business → home, with a label prefix. */
+function primaryPhone(contact: Contact): string {
+  if (contact.mobilePhone) return contact.mobilePhone;
+  if (contact.businessPhones && contact.businessPhones.length > 0) return contact.businessPhones[0]!;
+  if (contact.homePhones && contact.homePhones.length > 0) return contact.homePhones[0]!;
+  return '';
+}
+
+/** First email address, if any. */
+function primaryEmail(contact: Contact): string {
+  if (contact.emailAddresses && contact.emailAddresses.length > 0) {
+    return contact.emailAddresses[0]!.address ?? '';
+  }
+  return '';
+}
+
+/**
+ * Aligned columns: NAME, PHONE, EMAIL, COMPANY, ID.
+ * Uses truncate() for long fields to keep output scannable.
+ */
+export function renderContactList(contacts: Contact[]): string {
+  if (contacts.length === 0) return '(no contacts)';
+
+  const header = [
+    'NAME'.padEnd(NAME_WIDTH),
+    'PHONE'.padEnd(PHONE_WIDTH),
+    'EMAIL'.padEnd(EMAIL_WIDTH),
+    'COMPANY'.padEnd(COMPANY_WIDTH),
+    'ID',
+  ].join(' ');
+
+  const rows = contacts.map((c) => {
+    const name = truncate(c.displayName ?? '(unnamed)', NAME_WIDTH);
+    const phone = truncate(primaryPhone(c), PHONE_WIDTH);
+    const email = truncate(primaryEmail(c), EMAIL_WIDTH);
+    const company = truncate(c.companyName ?? '', COMPANY_WIDTH);
+    return [
+      name.padEnd(NAME_WIDTH),
+      phone.padEnd(PHONE_WIDTH),
+      email.padEnd(EMAIL_WIDTH),
+      company.padEnd(COMPANY_WIDTH),
+      c.id,
+    ].join(' ');
+  });
+
+  return [header, ...rows].join('\n');
+}
+
+/** Combine all phone numbers with labels: mobile, business, home. */
+function allPhones(contact: Contact): string {
+  const parts: string[] = [];
+  if (contact.mobilePhone) parts.push(`${contact.mobilePhone} (mobile)`);
+  if (contact.businessPhones) {
+    for (const p of contact.businessPhones) parts.push(`${p} (business)`);
+  }
+  if (contact.homePhones) {
+    for (const p of contact.homePhones) parts.push(`${p} (home)`);
+  }
+  return parts.length > 0 ? parts.join(', ') : '(none)';
+}
+
+/** All email addresses, comma-separated. */
+function allEmails(contact: Contact): string {
+  if (!contact.emailAddresses || contact.emailAddresses.length === 0) return '(none)';
+  return contact.emailAddresses
+    .map((e) => {
+      const addr = e.address ?? '(unknown)';
+      return e.name ? `${e.name} <${addr}>` : addr;
+    })
+    .join(', ');
+}
+
+/** Full detail view of a single contact, similar to renderMessage. */
+export function renderContact(contact: Contact): string {
+  const lines: string[] = [
+    `Name: ${contact.displayName ?? '(unnamed)'}`,
+    `Email: ${allEmails(contact)}`,
+    `Phone: ${allPhones(contact)}`,
+  ];
+  if (contact.companyName) lines.push(`Company: ${contact.companyName}`);
+  if (contact.jobTitle) lines.push(`Job title: ${contact.jobTitle}`);
+  if (contact.department) lines.push(`Department: ${contact.department}`);
+  if (contact.personalNotes) lines.push(`Notes: ${contact.personalNotes}`);
+  lines.push(`Id: ${contact.id}`);
   return lines.join('\n');
 }
