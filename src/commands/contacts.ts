@@ -64,7 +64,7 @@ async function listHandler(ctx: CommandContext): Promise<void> {
 
   const contacts = await collectItems<Contact>(ctx.client, '/me/contacts', {
     query,
-    limit,
+    limit: all ? undefined : limit,
     all,
   });
 
