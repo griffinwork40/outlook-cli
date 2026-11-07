@@ -145,6 +145,44 @@ describe('--json refusal', () => {
   });
 });
 
+describe('validatePolicy — deny.file path traversal', () => {
+  it('rejects an absolute path', () => {
+    expect(
+      validatePolicy({
+        allowCommands: [],
+        move: { denySenders: { file: '/etc/passwd', maxAgeHours: 1, destinations: ['a'] } },
+      }),
+    ).toContain('relative path');
+  });
+
+  it('rejects a path with .. segments', () => {
+    expect(
+      validatePolicy({
+        allowCommands: [],
+        move: { denySenders: { file: '../outside.json', maxAgeHours: 1, destinations: ['a'] } },
+      }),
+    ).toContain('relative path');
+  });
+
+  it('rejects a path with backslashes', () => {
+    expect(
+      validatePolicy({
+        allowCommands: [],
+        move: { denySenders: { file: 'sub\\file.json', maxAgeHours: 1, destinations: ['a'] } },
+      }),
+    ).toContain('relative path');
+  });
+
+  it('allows a nested relative path without .. or backslashes', () => {
+    expect(
+      validatePolicy({
+        allowCommands: [],
+        move: { denySenders: { file: 'sub/deny.json', maxAgeHours: 1, destinations: ['a'] } },
+      }),
+    ).toBeUndefined();
+  });
+});
+
 describe('validatePolicy', () => {
   it('accepts the documented shape, with $comment keys', () => {
     expect(

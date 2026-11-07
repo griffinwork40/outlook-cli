@@ -82,6 +82,11 @@ function unsafePathReason(url: string): string | undefined {
     if (decoded === '.' || decoded === '..' || decoded.includes('\\') || decoded.includes('/')) {
       return 'request path contains a dot segment, backslash or encoded slash';
     }
+    // Defense-in-depth: a legitimately constructed message id never contains
+    // a bare '%' after one decode — a remaining '%' means double-encoding.
+    if (decoded.includes('%')) {
+      return 'request path contains a double-encoded percent sequence';
+    }
   }
   return undefined;
 }
@@ -89,6 +94,19 @@ function unsafePathReason(url: string): string | undefined {
 interface MoveTarget {
   destination: string;
   messageId: string | undefined;
+}
+
+/**
+ * Map a purge (DELETE /me/messages/{id}) to a logical destination of
+ * "deleteditems" so move.allowedDestinations and move.denySenders apply.
+ */
+function purgeTarget(spec: RequestSpec): MoveTarget | undefined {
+  if (spec.method.toUpperCase() !== 'DELETE') return undefined;
+  const path = rawPath(spec.url);
+  // Match /me/messages/{id} with no trailing path segment (not a sub-resource).
+  const match = /\/me\/messages\/([^/]+)$/.exec(path);
+  if (!match) return undefined;
+  return { destination: 'deleteditems', messageId: match[1] };
 }
 
 /** A POST ending in /move (message or folder move); undefined for anything else. */
@@ -128,10 +146,10 @@ export async function evaluatePolicy(input: PolicyInput): Promise<PolicyVerdict 
   const pathProblem = unsafePathReason(input.spec.url);
   if (pathProblem !== undefined) return refuse('request-path', pathProblem);
 
-  const move = moveTarget(input.spec);
+  const move = moveTarget(input.spec) ?? purgeTarget(input.spec);
   if (move === undefined) return { policyPath: path, allowed: true };
   const { destination, messageId } = move;
-  if (destination === '') return refuse('move.allowedDestinations', 'move request has no destinationId');
+  if (destination === '') return refuse('purge', 'purge request could not determine destination');
 
   const allowedDestinations = policy.move?.allowedDestinations;
   if (allowedDestinations !== undefined && !allowedDestinations.some((d) => sameFolder(d, destination))) {

@@ -104,6 +104,14 @@ export function validatePolicy(v: unknown): string | undefined {
   if (typeof deny['file'] !== 'string' || deny['file'].trim() === '') {
     return '"move.denySenders.file" must be a path';
   }
+  const denyFile = deny['file'] as string;
+  if (
+    denyFile.startsWith('/') ||
+    denyFile.includes('\\') ||
+    denyFile.split('/').some((seg) => seg === '..')
+  ) {
+    return '"move.denySenders.file" must be a relative path with no \'..\' segments or backslashes';
+  }
   const maxAge = deny['maxAgeHours'];
   if (typeof maxAge !== 'number' || !Number.isFinite(maxAge) || maxAge <= 0) {
     return '"move.denySenders.maxAgeHours" must be a positive number';

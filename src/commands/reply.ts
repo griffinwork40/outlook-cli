@@ -33,7 +33,7 @@
 import { emit, guardMutation, type CommandContext, type CommandSpec } from '../command.js';
 import { renderRequest } from '../dryRun.js';
 import { UsageError } from '../errors.js';
-import { dryRunVerdict, renderVerdict } from '../policyGuard.js';
+import { dryRunVerdict, enforcePolicy, renderVerdict } from '../policyGuard.js';
 import { appendTextSignature, resolveSignature } from '../signature.js';
 import { describeRecipients, recipientsFromArgs } from './compose.js';
 import {
@@ -147,7 +147,7 @@ async function runHtmlFlow(
     ctx.out('');
     ctx.out('--- Step 3: send draft ---');
     ctx.out(renderRequest(specs.sendSpec));
-    const verdict = await dryRunVerdict(ctx, specs.createSpec);
+    const verdict = await dryRunVerdict(ctx, specs.sendSpec);
     if (verdict !== undefined) {
       ctx.out('');
       ctx.out(renderVerdict(verdict));
@@ -155,10 +155,10 @@ async function runHtmlFlow(
     return;
   }
 
-  // Guard: check write scope via the create spec (same check guardMutation does).
-  // We do it once here rather than once per step.
-  const dummy = await guardMutation(ctx, specs.createSpec, async () => true);
-  if (dummy === undefined) return; // unreachable — dryRun=true returns above; satisfies TS
+  // Enforce policy for each of the three steps before any network call.
+  await enforcePolicy(ctx, specs.createSpec);
+  await enforcePolicy(ctx, specs.patchSpec);
+  await enforcePolicy(ctx, specs.sendSpec);
 
   const draftId = await executeReplyDraft(ctx.client, {
     messageId,

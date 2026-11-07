@@ -108,4 +108,20 @@ describe('move.allowedDestinations', () => {
     await expectRefused(moveCommand.handler(ctx), 'request-path');
     expect(calls).toHaveLength(0);
   });
+
+  it('refuses a double-encoded traversal segment in a move message id', async () => {
+    // %252e%252e decodes once to %2e%2e, which still contains '%' — rejected.
+    const { ctx, calls } = await setup(['%252e%252e/mailFolders/inbox', '--folder', ARCHIVE], 'move');
+    await expectRefused(moveCommand.handler(ctx), 'request-path');
+    expect(calls).toHaveLength(0);
+  });
+
+  it('purge (DELETE) is refused when deleteditems is not in allowedDestinations', async () => {
+    const { ctx, calls } = await setup(['MSG1', '--yes'], 'purge', {
+      policy: { allowCommands: ['purge'], move: { allowedDestinations: [ARCHIVE] } },
+    });
+    const { purgeCommand } = await import('./commands/move.js');
+    await expectRefused(purgeCommand.handler(ctx), 'move.allowedDestinations');
+    expect(calls).toHaveLength(0);
+  });
 });
