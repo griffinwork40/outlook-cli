@@ -107,12 +107,86 @@ for the full audit and the two items deliberately left open.
 
 ---
 
+## Restricted agent mode
+
+An unattended agent that only files mail should not be able to send, edit
+rules, or move messages anywhere it likes. Two opt-in controls narrow what the
+CLI will do for it. With neither set, behavior is unchanged.
+
+**1. A scoped token in its own cache.** `--scopes` requests exactly the listed
+scopes (`offline_access` is added if missing) and records that set with the
+token; `auth refresh` re-requests the same set rather than the default list, so
+the grant never widens. `GRAPH_TOKEN_CACHE` keeps it apart from your main
+login.
+
+```bash
+export GRAPH_TOKEN_CACHE=~/.afk/state/outlook/agent-token.json
+outlook auth login --scopes Mail.ReadWrite
+outlook auth status --json   # "grantScopes": ["offline_access", "Mail.ReadWrite"]
+```
+
+**2. A mutation policy.** `OUTLOOK_POLICY=<path>` points at a JSON file that
+every mutating request is checked against, inside the same `guardMutation`
+chokepoint that implements `--dry-run`. Reads are never affected.
+
+```json
+{
+  "$comment": "mail-filing agent: two destinations, nothing else",
+  "allowCommands": ["move", "mark-read"],
+  "move": {
+    "allowedDestinations": ["AAMkAGI2...ReviewFolderId", "archive"],
+    "denySenders": {
+      "file": "protected_senders.json",
+      "maxAgeHours": 48,
+      "destinations": ["AAMkAGI2...ReviewFolderId"]
+    }
+  }
+}
+```
+
+| Key | Effect |
+|---|---|
+| `allowCommands` | Mutating commands that may run. `"draft create"` allows one subcommand; `"draft"` allows them all. Anything else (send, reply, rules create, purge) is refused. |
+| `move.allowedDestinations` | Folder ids or well-known names a move (including `delete`, which moves to `deleteditems`) may target. Well-known names match case-insensitively; ids match exactly, so list the form the agent will pass. |
+| `move.denySenders` | Before a move into one of `destinations`, the CLI fetches the message's `from` (`GET /me/messages/{id}?$select=from`) and refuses if that address is in `file` (relative to the policy file): a JSON array of addresses, or `{"addresses": [...], "built_at": "<ISO time>"}`. |
+
+It fails closed. A missing, unparseable or misspelled policy file (unknown keys
+are errors) refuses every mutation. A deny list that is missing, unparseable,
+or older than `maxAgeHours` (by `built_at`, else file mtime) refuses moves to
+its destinations. A message with no sender address is refused for those
+destinations, and so is a message id that would change the request path
+(`../`, `%2e%2e`, backslashes).
+
+Refusals exit with code **4** and, under `--json`, print
+`{"error": {"code": "PolicyRefused", "rule": "...", "message": "..."}}` to
+stdout. `--dry-run` still prints the request without any network call and adds
+the policy's verdict; the deny-list sender lookup is a network call, so a dry
+run reports it as skipped.
+
+```bash
+export OUTLOOK_POLICY=~/.afk/config/agent-policy.json
+outlook send --to a@example.com --subject S --body B
+# Refused by mutation policy (allowCommands): 'send' is not in allowCommands   (exit 4)
+outlook move <id> --folder inbox --dry-run
+# ...request...
+# Policy (/home/me/.afk/config/agent-policy.json): would REFUSE (move.allowedDestinations): ...
+```
+
+The policy is a guard inside the CLI, not an operating-system boundary. A
+process that can run its own code as your user can read the token cache and
+call Graph directly, or unset the variable. Pair it with a scoped token (a
+`Mail.ReadWrite`-only token cannot send mail or edit inbox rules even outside
+the CLI), and keep the policy and deny list files out of the agent's write
+reach.
+
+---
+
 ## Commands
 
 ### Auth
 | Command | Purpose |
 |---|---|
-| `outlook auth login` | Device-code sign-in |
+| `outlook auth login` | Device-code sign-in (`--readonly`, or `--scopes a,b` for an exact scope set) |
 | `outlook auth status` | Signed-in identity and token expiry (token never printed) |
 | `outlook auth refresh` | Force a token refresh |
 | `outlook auth logout` | Delete the cached token |

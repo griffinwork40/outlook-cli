@@ -33,6 +33,7 @@
 import { emit, guardMutation, type CommandContext, type CommandSpec } from '../command.js';
 import { renderRequest } from '../dryRun.js';
 import { UsageError } from '../errors.js';
+import { dryRunVerdict, renderVerdict } from '../policyGuard.js';
 import { appendTextSignature, resolveSignature } from '../signature.js';
 import { describeRecipients, recipientsFromArgs } from './compose.js';
 import {
@@ -146,6 +147,11 @@ async function runHtmlFlow(
     ctx.out('');
     ctx.out('--- Step 3: send draft ---');
     ctx.out(renderRequest(specs.sendSpec));
+    const verdict = await dryRunVerdict(ctx, specs.createSpec);
+    if (verdict !== undefined) {
+      ctx.out('');
+      ctx.out(renderVerdict(verdict));
+    }
     return;
   }
 

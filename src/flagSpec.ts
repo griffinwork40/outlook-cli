@@ -45,7 +45,7 @@ const COMPOSE_FLAGS: readonly string[] = [
  * belongs here.
  */
 export const COMMAND_FLAGS: Readonly<Record<string, readonly string[]>> = {
-  auth: ['readonly'],
+  auth: ['readonly', 'scopes'],
   me: [],
   list: ['folder', 'limit', 'all', 'unread'],
   get: ['html'],

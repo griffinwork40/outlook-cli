@@ -34,11 +34,18 @@ export interface AuthStatus {
   scopes?: string;
   /** Absent on a pre-existing token issued before read-only mode existed. */
   mode?: GrantMode;
+  /** Present only when the session was signed in with `--scopes`. */
+  grantScopes?: string[];
 }
 
 export interface LoginOptions {
   /** Request the reduced scope set — cannot send, delete, or modify mail. */
   readOnly?: boolean;
+  /**
+   * Request exactly these scopes (already normalized by parseScopeList, so
+   * `offline_access` is included). Mutually exclusive with readOnly.
+   */
+  scopes?: readonly string[];
 }
 
 export interface Authenticator {
@@ -78,12 +85,14 @@ export function createAuthenticator(
     // Refresh with the scope set this grant was ORIGINALLY obtained under.
     // Hardcoding DEFAULT_SCOPES here would ask Azure to upgrade a read-only
     // session to full read/write on its next refresh, silently undoing the
-    // least-privilege choice the user made at login.
+    // least-privilege choice the user made at login. A `--scopes` login
+    // records its exact set in grantScopes, which wins over the mode default.
     const mode = cached.mode ?? 'full';
+    const scopes = cached.grantScopes ?? scopesForMode(mode);
     const tokenResponse = await exchangeRefreshToken(
       cfg,
       cached.refreshToken,
-      mode,
+      scopes,
       fetchImpl,
     );
     const nextTokens = toTokenSet(tokenResponse, now(), cached);
@@ -108,7 +117,12 @@ export function createAuthenticator(
       opts: LoginOptions = {},
     ): Promise<TokenSet> {
       const mode: GrantMode = opts.readOnly ? 'readonly' : 'full';
-      const deviceCode = await requestDeviceCode(cfg, scopesForMode(mode), fetchImpl);
+      const custom = opts.scopes !== undefined ? [...opts.scopes] : undefined;
+      const deviceCode = await requestDeviceCode(
+        cfg,
+        custom ?? scopesForMode(mode),
+        fetchImpl,
+      );
       onPrompt(deviceCode);
 
       const tokenResponse = await pollForToken(cfg, deviceCode.device_code, {
@@ -118,7 +132,11 @@ export function createAuthenticator(
         sleep,
       });
 
-      const tokens = { ...toTokenSet(tokenResponse, now()), mode };
+      const tokens: TokenSet = {
+        ...toTokenSet(tokenResponse, now()),
+        mode,
+        ...(custom !== undefined ? { grantScopes: custom } : {}),
+      };
       await store.save(tokens);
       return tokens;
     },
@@ -140,6 +158,7 @@ export function createAuthenticator(
         ...(cached.account !== undefined ? { account: cached.account } : {}),
         ...(cached.scope !== undefined ? { scopes: cached.scope } : {}),
         ...(cached.mode !== undefined ? { mode: cached.mode } : {}),
+        ...(cached.grantScopes !== undefined ? { grantScopes: cached.grantScopes } : {}),
       };
     },
   };
@@ -149,7 +168,7 @@ export function createAuthenticator(
 async function exchangeRefreshToken(
   cfg: OutlookConfig,
   refreshToken: string,
-  mode: GrantMode,
+  scopes: readonly string[],
   fetchImpl: typeof fetch,
 ): Promise<TokenResponse> {
   const url = `${authorityBase(cfg.tenantId)}/token`;
@@ -157,7 +176,7 @@ async function exchangeRefreshToken(
     grant_type: 'refresh_token',
     client_id: cfg.clientId,
     refresh_token: refreshToken,
-    scope: scopesForMode(mode).join(' '),
+    scope: scopes.join(' '),
   });
 
   const res = await postForm(url, params, fetchImpl);
@@ -206,6 +225,9 @@ function toTokenSet(
   // and ask for the full scope set, and guardMutation's read-only gate would
   // stop firing. A --readonly session must stay read-only across refreshes.
   const mode = previous?.mode;
+  // Same for a custom scope set: drop it and the next refresh asks for
+  // DEFAULT_SCOPES, widening a deliberately narrow grant.
+  const grantScopes = previous?.grantScopes;
 
   return {
     accessToken: tokenResponse.access_token,
@@ -215,6 +237,7 @@ function toTokenSet(
     ...(tokenType !== undefined ? { tokenType } : {}),
     ...(account !== undefined ? { account } : {}),
     ...(mode !== undefined ? { mode } : {}),
+    ...(grantScopes !== undefined ? { grantScopes } : {}),
   };
 }
 
