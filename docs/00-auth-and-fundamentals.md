@@ -489,7 +489,7 @@ Flagging these explicitly per the research brief — do not treat any of the fol
 
 ## 10. Implementation checklist for the CLI
 
-1. **App registration (one-time, human step):** register an app, set **Supported account types → Accounts in any organizational directory and personal Microsoft accounts**, enable **Allow public client flows = Yes** (§6), grant delegated scopes `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite` (no admin consent needed per §5 — all are user-consentable). No redirect URI is needed for device-code flow.
+1. **App registration (one-time, human step):** register an app, set **Supported account types → Accounts in any organizational directory and personal Microsoft accounts**, enable **Allow public client flows = Yes** (§6), grant delegated scopes `User.Read`, `Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite` (no admin consent needed per §5 — all are user-consentable). The shipped CLI's `DEFAULT_SCOPES` (`src/types.ts`) has since grown to also include `Contacts.Read`, `Calendars.Read`, `Files.Read.All` and `Sites.Read.All`; the last two need tenant admin consent on work/school accounts (see SETUP.md). No redirect URI is needed for device-code flow.
 2. **Auth module:**
    - `POST /devicecode` with `tenant=common` (§1, §2) → display `message`/`user_code`/`verification_uri` to the user.
    - Poll `POST /token` with `grant_type=urn:ietf:params:oauth:grant-type:device_code` (§3) every `interval` seconds; handle all 5 polling codes including the undocumented-but-real `slow_down` (§9.1).

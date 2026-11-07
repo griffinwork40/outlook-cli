@@ -255,6 +255,15 @@ export const GRAPH_BASE = 'https://graph.microsoft.com/v1.0';
  */
 export const REQUEST_TIMEOUT_MS = 60_000;
 
+/**
+ * Full grant requested by a plain `outlook auth login`.
+ *
+ * Calendars.Read, Files.Read.All and Sites.Read.All are read-only grants that
+ * let the same token read calendar events and search/download OneDrive and
+ * SharePoint files through Graph (/search/query, /drives/{id}/items/{id}/content).
+ * Files.Read.All and Sites.Read.All typically need tenant admin consent on work
+ * accounts (see SETUP.md). Users must re-login to pick up newly added scopes.
+ */
 export const DEFAULT_SCOPES = [
   'offline_access',
   'User.Read',
@@ -262,6 +271,9 @@ export const DEFAULT_SCOPES = [
   'Mail.Send',
   'MailboxSettings.ReadWrite',
   'Contacts.Read',
+  'Calendars.Read',
+  'Files.Read.All',
+  'Sites.Read.All',
 ] as const;
 
 /**

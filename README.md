@@ -191,6 +191,16 @@ reach.
 | `outlook auth refresh` | Force a token refresh |
 | `outlook auth logout` | Delete the cached token |
 
+A plain `outlook auth login` requests `offline_access`, `User.Read`,
+`Mail.ReadWrite`, `Mail.Send`, `MailboxSettings.ReadWrite`, `Contacts.Read`,
+`Calendars.Read`, `Files.Read.All` and `Sites.Read.All`. The last three are
+read-only and let the same token read calendar events and search or download
+OneDrive/SharePoint files through Graph. `Files.Read.All` and `Sites.Read.All`
+are delegated permissions that need **admin consent** in the Azure app
+registration on work/school tenants; `Calendars.Read` does not. See
+[SETUP.md](./SETUP.md#admin-consent-for-filesreadall-and-sitesreadall).
+`--readonly` keeps its smaller mail-only set.
+
 ### Reading
 | Command | Purpose |
 |---|---|
