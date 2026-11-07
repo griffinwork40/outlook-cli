@@ -140,9 +140,37 @@ At first sign-in Microsoft shows a consent screen listing these scopes:
 | `Mail.ReadWrite` | Read messages, manage drafts, flags, folders |
 | `Mail.Send` | Send, reply, forward |
 | `MailboxSettings.ReadWrite` | Read/write mailbox settings (needed for `rules create`) |
+| `Contacts.Read` | Read your contacts — powers `outlook contacts` |
+| `Calendars.Read` | Read your calendar events through Graph |
+| `Files.Read.All` | Read OneDrive and SharePoint files you can access (search and download) |
+| `Sites.Read.All` | Read SharePoint sites, documents and list items you can access |
 
 These are **delegated** permissions: the CLI can only ever do what *you* can do,
-and only while your token is valid.
+and only while your token is valid. `outlook auth login --readonly` requests a
+smaller mail-only set (`offline_access`, `User.Read`, `Mail.Read`,
+`MailboxSettings.Read`) and none of the calendar or file scopes.
+
+### Admin consent for Files.Read.All and Sites.Read.All
+
+`Files.Read.All` and `Sites.Read.All` are delegated permissions that need
+**admin consent** in the Azure app registration on work/school tenants. Since
+August 2025 Microsoft's default user-consent policy ("Let Microsoft manage your
+consent settings") blocks users from consenting to them for third-party apps,
+so sign-in fails at the consent screen until an admin grants them. A tenant
+admin can do this once:
+
+**App registrations** → your app → **API permissions** → **+ Add a permission**
+→ **Microsoft Graph** → **Delegated permissions** → add `Files.Read.All` and
+`Sites.Read.All` (add the other scopes in the table too) → **Grant admin
+consent for &lt;tenant&gt;**.
+
+`Calendars.Read` does not need admin consent; like the mail scopes, the user
+approves it on the sign-in consent screen. Personal Microsoft accounts
+(outlook.com) have no tenant admin and consent to all of these scopes
+themselves.
+
+After upgrading from a version without these scopes, run `outlook auth logout`
+then `outlook auth login` so the new token carries them.
 
 ## Revoking access
 
@@ -168,3 +196,4 @@ outlook auth logout
 | `Missing required environment variable(s): GRAPH_CLIENT_ID` | Not exported | Step 5 |
 | `InvalidAuthenticationToken` on a call | Token expired and refresh failed | `outlook auth login` |
 | Sign-in works, mail calls 403 | Consent was declined or partial | `outlook auth logout` then log in again and accept all scopes |
+| Consent screen says "Need admin approval" (`AADSTS90094` / `AADSTS65001`) | Tenant blocks user consent to `Files.Read.All` / `Sites.Read.All` | Ask a tenant admin to grant admin consent (see "Admin consent" above), or sign in with `--readonly` / `--scopes` to skip those scopes |
