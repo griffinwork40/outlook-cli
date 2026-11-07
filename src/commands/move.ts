@@ -26,7 +26,7 @@ import { UsageError } from '../errors.js';
 const DELETED_ITEMS = 'deleteditems';
 
 function messagePath(id: string): string {
-  return `/me/messages/${id}`;
+  return `/me/messages/${encodeURIComponent(id)}`;
 }
 
 /** Well-known names are documented as lowercase literals; a raw folder id is opaque and case-sensitive. */

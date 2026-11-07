@@ -197,6 +197,12 @@ export interface TokenSet {
   /** Signed-in identity, for `auth status`. */
   account?: string;
   mode?: GrantMode;
+  /**
+   * The exact scope set requested by `auth login --scopes`. When present,
+   * refresh re-requests exactly this set instead of scopesForMode(mode), so a
+   * narrow grant stays narrow. Absent for default and --readonly logins.
+   */
+  grantScopes?: string[];
 }
 
 /** Response from the /devicecode endpoint (docs/00 §2). */

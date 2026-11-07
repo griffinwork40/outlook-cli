@@ -12,6 +12,7 @@ import type { Authenticator } from './auth.js';
 import type { GraphClient } from './client.js';
 import { renderRequest } from './dryRun.js';
 import { InsufficientScopeError } from './errors.js';
+import { dryRunVerdict, enforcePolicy, renderVerdict, type PolicyVerdict } from './policyGuard.js';
 import { redactObject } from './redact.js';
 import type { RequestSpec } from './types.js';
 
@@ -21,6 +22,12 @@ export interface CommandContext {
   json: boolean;
   /** --dry-run: render the request, send nothing. */
   dryRun: boolean;
+  /**
+   * Registered command name (e.g. "move", "draft"), set by cli.ts. The
+   * OUTLOOK_POLICY guard matches it against `allowCommands`; when a policy is
+   * active and this is absent, every mutation is refused.
+   */
+  command?: string;
   client: GraphClient;
   auth: Authenticator;
   out: (line: string) => void;
@@ -47,7 +54,9 @@ export interface CommandSpec {
 /**
  * Wrap every state-changing Graph call. When --dry-run is set, prints the
  * exact request that WOULD have been issued and returns undefined without
- * touching the network.
+ * touching the network. When OUTLOOK_POLICY is set, the dry run also reports
+ * whether the policy would allow the request, and a real run is refused
+ * (PolicyRefusedError, exit 4) unless the policy allows it.
  */
 export async function guardMutation<T>(
   ctx: CommandContext,
@@ -55,19 +64,43 @@ export async function guardMutation<T>(
   exec: () => Promise<T>,
 ): Promise<T | undefined> {
   if (ctx.dryRun) {
+    const verdict = await dryRunVerdict(ctx, spec);
     if (ctx.json) {
       ctx.out(
-        JSON.stringify({ dryRun: true, request: redactSpecForJson(spec) }, null, 2),
+        JSON.stringify(
+          {
+            dryRun: true,
+            request: redactSpecForJson(spec),
+            ...(verdict === undefined ? {} : { policy: verdictJson(verdict) }),
+          },
+          null,
+          2,
+        ),
       );
     } else {
       ctx.out('DRY RUN — nothing was sent. The request below is what would go out:');
       ctx.out('');
       ctx.out(renderRequest(spec));
+      if (verdict !== undefined) {
+        ctx.out('');
+        ctx.out(renderVerdict(verdict));
+      }
     }
     return undefined;
   }
   await assertWriteScope(ctx, spec);
+  await enforcePolicy(ctx, spec);
   return exec();
+}
+
+function verdictJson(verdict: PolicyVerdict): Record<string, unknown> {
+  return {
+    path: verdict.policyPath,
+    allowed: verdict.allowed,
+    ...(verdict.rule === undefined ? {} : { rule: verdict.rule }),
+    ...(verdict.reason === undefined ? {} : { reason: verdict.reason }),
+    ...(verdict.senderCheck === undefined ? {} : { senderCheck: verdict.senderCheck }),
+  };
 }
 
 /**

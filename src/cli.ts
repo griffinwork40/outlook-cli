@@ -10,7 +10,8 @@
  *   3. Own the one error -> exit-code boundary, so no command ever calls
  *      process.exit and every message is redacted exactly once on its way out.
  *
- * Exit codes: 0 ok | 1 unexpected | 2 usage | 3 auth/config (see errors.ts).
+ * Exit codes: 0 ok | 1 unexpected | 2 usage | 3 auth/config | 4 policy refusal
+ * (see errors.ts).
  */
 
 import { createRequire } from 'node:module';
@@ -151,6 +152,9 @@ function helpText(): string {
     '  -h, --help     This help, or `outlook <command> --help`',
     '  -V, --version  Print the version',
     '',
+    'Environment:',
+    '  OUTLOOK_POLICY=<file>  Restrict mutations to a JSON policy (README: Restricted agent mode)',
+    '',
     'First run: export GRAPH_CLIENT_ID=<azure-app-id> && outlook auth login',
     'Setup walkthrough: SETUP.md',
     '',
@@ -168,7 +172,7 @@ function helpText(): string {
  * including `auth logout`. That is intentional — one code path, and the
  * MissingCredentialsError already names the variable and points at SETUP.md.
  */
-function buildContext(args: ParsedArgs): CommandContext {
+function buildContext(args: ParsedArgs, commandName: string): CommandContext {
   const config = resolveConfig(process.env);
   const store = createTokenStore(config.tokenCachePath);
   const auth = createAuthenticator(config, store);
@@ -180,6 +184,7 @@ function buildContext(args: ParsedArgs): CommandContext {
     args,
     json: args.bool('json'),
     dryRun: args.bool('dry-run'),
+    command: commandName,
     client,
     auth,
     env: process.env,
@@ -223,7 +228,7 @@ async function run(argv: string[]): Promise<number> {
   // handler runs. A typo'd --dry-run must never reach a mutating command.
   assertKnownFlags(command.name, args.names());
 
-  const ctx = buildContext(args);
+  const ctx = buildContext(args, command.name);
 
   // A no-op --dry-run should say so rather than imply something was withheld.
   if (ctx.dryRun && !command.mutating) {

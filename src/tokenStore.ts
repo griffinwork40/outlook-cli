@@ -8,6 +8,7 @@
 import { randomBytes } from 'node:crypto';
 import { chmod, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
+import { isScopeArray } from './scopes.js';
 import type { TokenSet } from './types.js';
 
 /** Owner read/write only — the file holds an access + refresh token. */
@@ -118,6 +119,9 @@ function isTokenSet(value: unknown): value is TokenSet {
   if (v['mode'] !== undefined && v['mode'] !== 'readonly' && v['mode'] !== 'full') {
     return false;
   }
+  // Same reasoning: a malformed custom scope set must not fall back to the
+  // default (wider) scopes on the next refresh.
+  if (v['grantScopes'] !== undefined && !isScopeArray(v['grantScopes'])) return false;
 
   return true;
 }

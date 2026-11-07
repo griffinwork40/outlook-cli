@@ -6,6 +6,7 @@
  *   1 — runtime/API failure
  *   2 — usage error (bad flags, missing args)
  *   3 — missing credentials / not authenticated
+ *   4 — refused by the OUTLOOK_POLICY mutation policy
  */
 
 export class OutlookCliError extends Error {
@@ -61,6 +62,21 @@ export class InsufficientScopeError extends OutlookCliError {
       3,
     );
     this.name = 'InsufficientScopeError';
+  }
+}
+
+/**
+ * A mutation refused by the OUTLOOK_POLICY file (policy.ts). Its own exit code
+ * so an unattended caller can tell "the guard said no" from a Graph failure
+ * and stop instead of retrying. `rule` names the policy clause that fired.
+ */
+export class PolicyRefusedError extends OutlookCliError {
+  readonly rule: string;
+
+  constructor(rule: string, reason: string) {
+    super(`Refused by mutation policy (${rule}): ${reason}`, 4);
+    this.name = 'PolicyRefusedError';
+    this.rule = rule;
   }
 }
 

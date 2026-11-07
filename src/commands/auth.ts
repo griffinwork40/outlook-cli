@@ -27,6 +27,7 @@
 
 import { emit, type CommandContext, type CommandSpec } from '../command.js';
 import { UsageError } from '../errors.js';
+import { parseScopeList } from '../scopes.js';
 import { FILE_MODE_IS_ENFORCED } from '../tokenStore.js';
 import type { DeviceCodeResponse, GrantMode, TokenSet } from '../types.js';
 
@@ -40,6 +41,7 @@ interface AuthFacts {
   expiresAt?: number;
   scopes?: string;
   mode?: GrantMode;
+  grantScopes?: string[];
 }
 
 function renderFacts(facts: AuthFacts): string {
@@ -48,6 +50,7 @@ function renderFacts(facts: AuthFacts): string {
   if (facts.account) lines.push(`Account: ${facts.account}`);
   if (facts.expiresAt !== undefined) lines.push(`Expires: ${new Date(facts.expiresAt).toISOString()}`);
   if (facts.scopes) lines.push(`Scopes: ${facts.scopes}`);
+  if (facts.grantScopes) lines.push(`Requested scopes (--scopes): ${facts.grantScopes.join(' ')}`);
   if (facts.mode) {
     lines.push(
       `Access: ${facts.mode === 'readonly' ? 'read-only (cannot send or delete)' : 'full read/write'}`,
@@ -64,6 +67,7 @@ function factsFromTokenSet(tokens: TokenSet): AuthFacts {
     expiresAt: tokens.expiresAt,
     ...(tokens.scope !== undefined ? { scopes: tokens.scope } : {}),
     ...(tokens.mode !== undefined ? { mode: tokens.mode } : {}),
+    ...(tokens.grantScopes !== undefined ? { grantScopes: tokens.grantScopes } : {}),
   };
 }
 
@@ -83,9 +87,13 @@ function printDevicePrompt(ctx: CommandContext, device: DeviceCodeResponse): voi
 
 async function loginHandler(ctx: CommandContext): Promise<void> {
   const readOnly = ctx.args.bool('readonly');
+  const scopes = scopesFlag(ctx);
+  if (readOnly && scopes !== undefined) {
+    throw new UsageError('--readonly and --scopes cannot be combined; list the read scopes you want in --scopes.');
+  }
   const tokens = await ctx.auth.login(
     (device) => printDevicePrompt(ctx, device),
-    { readOnly },
+    { readOnly, ...(scopes !== undefined ? { scopes } : {}) },
   );
 
   // The stored refresh token is only as private as the file holding it, and
@@ -119,10 +127,25 @@ async function refreshHandler(ctx: CommandContext): Promise<void> {
   emit(ctx, facts, () => `Token refreshed.\n${renderFacts(facts)}`);
 }
 
+/** `--scopes a,b,c`, normalized; undefined when the flag is absent. */
+function scopesFlag(ctx: CommandContext): string[] | undefined {
+  if (!ctx.args.has('scopes')) return undefined;
+  const raw = ctx.args.str('scopes');
+  if (raw === undefined) {
+    throw new UsageError('--scopes requires a comma-separated list, e.g. --scopes Mail.ReadWrite');
+  }
+  return parseScopeList(raw);
+}
+
 async function authHandler(ctx: CommandContext): Promise<void> {
   // Note: ParsedArgs.str(name, fallback) keys off a *named* flag (--name),
   // not a positional index — positionals are read directly off the array.
   const subcommand = ctx.args.positionals[0] ?? 'status';
+  if (subcommand !== 'login' && ctx.args.has('scopes')) {
+    throw new UsageError(
+      '--scopes applies only to "outlook auth login"; refresh reuses the scope set recorded at login.',
+    );
+  }
   switch (subcommand) {
     case 'login':
       return loginHandler(ctx);
@@ -143,11 +166,15 @@ export const authCommand: CommandSpec = {
   name: 'auth',
   summary: 'Manage local sign-in: login, status, logout, refresh',
   usage:
-    'outlook auth [login|status|logout|refresh] [--readonly] [--json]\n' +
+    'outlook auth [login|status|logout|refresh] [--readonly | --scopes <list>] [--json]\n' +
     '\n' +
     '  --readonly  On login: request Mail.Read instead of Mail.ReadWrite and\n' +
     '              drop Mail.Send, so the stored token cannot send, delete, or\n' +
-    '              modify mail. Recommended for unattended/agent use.',
+    '              modify mail. Recommended for unattended/agent use.\n' +
+    '  --scopes    On login: request exactly these comma-separated scopes\n' +
+    '              (offline_access is added if missing). The set is stored\n' +
+    '              with the token and reused by refresh. Pair with\n' +
+    '              GRAPH_TOKEN_CACHE to keep a narrow token in its own file.',
   mutating: false,
   handler: authHandler,
 };
