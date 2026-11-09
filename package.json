@@ -1,6 +1,6 @@
 {
   "name": "@griffinwork40/outlook-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Lightweight CLI wrapper for the Microsoft Graph v1.0 Outlook Mail API",
   "type": "module",
   "license": "MIT",
