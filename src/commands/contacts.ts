@@ -11,7 +11,7 @@
  * `$search="displayName:{query}"` — the latter requires a
  * `ConsistencyLevel: eventual` header which would need client.ts changes.
  *
- * NOTE: the `Contacts.Read` scope is required. Users upgrading from a
+ * NOTE: the `Contacts.ReadWrite` scope is required. Users upgrading from a
  * previous version must re-login (`outlook auth logout && outlook auth login`)
  * to pick up the new scope.
  */
