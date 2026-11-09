@@ -1,5 +1,5 @@
 {
-  "name": "outlook-cli",
+  "name": "@griffinwork40/outlook-cli",
   "version": "1.0.0",
   "description": "Lightweight CLI wrapper for the Microsoft Graph v1.0 Outlook Mail API",
   "type": "module",
@@ -33,6 +33,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "prepublishOnly": "npm run build",
     "build": "tsup",
     "dev": "tsup --watch",
     "typecheck": "tsc --noEmit",
