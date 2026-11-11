@@ -50,6 +50,7 @@ export interface TestCtx {
 export function makeCtx(
   argv: string[],
   env: Record<string, string | undefined> = {},
+  options: { command?: string } = {},
 ): TestCtx {
   const out: string[] = [];
   const err: string[] = [];
@@ -60,6 +61,7 @@ export function makeCtx(
     args,
     json: args.bool('json'),
     dryRun: args.bool('dry-run'),
+    ...(options.command !== undefined ? { command: options.command } : {}),
     client,
     auth: stubAuth,
     env,

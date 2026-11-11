@@ -13,7 +13,7 @@ import { getCommand } from './commands/get.js';
 import { deleteCommand, moveCommand } from './commands/move.js';
 import { sendCommand } from './commands/send.js';
 import { makeCtx } from './commands/testUtils.js';
-import { ARCHIVE, expectRefused, setup, tempDir } from './policyTestUtils.js';
+import { ARCHIVE, REVIEW, expectRefused, freshDenyList, setup, tempDir } from './policyTestUtils.js';
 
 describe('no policy configured', () => {
   it('guardMutation runs exec exactly as before', async () => {
@@ -123,5 +123,53 @@ describe('move.allowedDestinations', () => {
     const { purgeCommand } = await import('./commands/move.js');
     await expectRefused(purgeCommand.handler(ctx), 'move.allowedDestinations');
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe('finding 1: verdictFor does not use positionals[0] as subcommand for leaf commands', () => {
+  it('move with a message-id positional is not treated as a subcommand lookup', async () => {
+    // Policy allows "move" (bare) but not "move MSG1". If positionals[0] were
+    // passed as subcommand, commandAllowed would look for "move MSG1" first,
+    // fail, then fall back to "move" — still allowed. The fix ensures we never
+    // even try the compound form for leaf commands.
+    const { ctx, calls } = await setup(['MSG1', '--folder', ARCHIVE], 'move');
+    await moveCommand.handler(ctx); // must succeed: "move" is in BASE_POLICY allowCommands
+    expect(calls.map((c) => c.method)).toEqual(['POST']);
+  });
+
+  it('"draft create" still works via subcommand lookup (draft IS a subcommand command)', async () => {
+    const { ctx, client } = await setup(['create', '--subject', 'S', '--no-signature'], 'draft');
+    const post = vi.spyOn(client, 'post').mockResolvedValue({ id: 'D1' } as never);
+    await draftCommand.handler(ctx); // "draft create" is in BASE_POLICY allowCommands
+    expect(post).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('finding 3: lookupSender uses encodeURIComponent on the message id', () => {
+  it('sender lookup URL-encodes a message id containing special characters', async () => {
+    // 'AAMk+id=foo' contains '+' and '=' which must be percent-encoded in the
+    // GET /me/messages/{id}?$select=from request that lookupSender issues.
+    await freshDenyList(['boss@example.com']);
+    const { ctx, calls } = await setup(['AAMk+id=foo', '--folder', REVIEW], 'move', {
+      sender: 'boss@example.com',
+    });
+    await expectRefused(moveCommand.handler(ctx), 'move.denySenders');
+    // The GET sender-lookup URL must have the id percent-encoded
+    const lookupUrl = calls.find((c) => c.method === 'GET')?.url ?? '';
+    expect(lookupUrl).toContain(encodeURIComponent('AAMk+id=foo'));
+    // Raw '+' must not appear unencoded in the path segment
+    expect(lookupUrl).not.toMatch(/\/me\/messages\/AAMk\+/);
+  });
+});
+
+describe('finding 7: makeCtx accepts an optional command option', () => {
+  it('ctx.command is set when the command option is passed', () => {
+    const { ctx } = makeCtx(['MSG1'], {}, { command: 'move' });
+    expect(ctx.command).toBe('move');
+  });
+
+  it('ctx.command is undefined when no command option is passed', () => {
+    const { ctx } = makeCtx(['MSG1']);
+    expect(ctx.command).toBeUndefined();
   });
 });

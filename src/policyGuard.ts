@@ -21,7 +21,7 @@ import type { RequestSpec } from './types.js';
 export interface PolicyVerdict {
   policyPath: string;
   allowed: boolean;
-  /** Which clause refused: policy-file, allowCommands, request-path, move.allowedDestinations, move.denySenders. */
+  /** Which clause refused: policy-file, allowCommands, request-path, move.allowedDestinations, move, move.denySenders. */
   rule?: string;
   reason?: string;
   /** Deny-list status for a move into a protected destination. */
@@ -149,7 +149,7 @@ export async function evaluatePolicy(input: PolicyInput): Promise<PolicyVerdict 
   const move = moveTarget(input.spec) ?? purgeTarget(input.spec);
   if (move === undefined) return { policyPath: path, allowed: true };
   const { destination, messageId } = move;
-  if (destination === '') return refuse('purge', 'purge request could not determine destination');
+  if (destination === '') return refuse('move', 'move request could not determine destination');
 
   const allowedDestinations = policy.move?.allowedDestinations;
   if (allowedDestinations !== undefined && !allowedDestinations.some((d) => sameFolder(d, destination))) {
@@ -182,16 +182,31 @@ export async function evaluatePolicy(input: PolicyInput): Promise<PolicyVerdict 
   return { policyPath: path, allowed: true, senderCheck: 'passed' };
 }
 
+/**
+ * Commands that dispatch to named subcommands via positionals[0] (e.g. `draft
+ * create`). For every other command positionals[0] is a resource id, not a
+ * subcommand keyword, and must NOT be forwarded to commandAllowed.
+ */
+const SUBCOMMAND_COMMANDS = new Set(['draft', 'folders', 'rules']);
+
 async function verdictFor(ctx: CommandContext, spec: RequestSpec): Promise<PolicyVerdict | undefined> {
+  const subcommand =
+    ctx.command !== undefined && SUBCOMMAND_COMMANDS.has(ctx.command)
+      ? ctx.args.positionals[0]
+      : undefined;
   return evaluatePolicy({
     env: ctx.env,
     command: ctx.command,
-    subcommand: ctx.args.positionals[0],
+    subcommand,
     spec,
     dryRun: ctx.dryRun,
     lookupSender: async (messageId) => {
+      // messageId arrives pre-encoded from the moveTarget/purgeTarget regex
+      // capture. Decode then re-encode to normalise any exotic percent-sequences
+      // and to be consistent with move.ts:messagePath (encodeURIComponent).
+      const safeId = encodeURIComponent(decodeURIComponent(messageId));
       const message = await ctx.client.get<{ from?: { emailAddress?: { address?: string } } }>(
-        `/me/messages/${messageId}`,
+        `/me/messages/${safeId}`,
         { $select: 'from' },
       );
       return message?.from?.emailAddress?.address;
