@@ -23,6 +23,7 @@
 import { readFile } from 'node:fs/promises';
 import type { ParsedArgs } from './args.js';
 import { UsageError } from './errors.js';
+import { escapeHtml } from './htmlUtils.js';
 import type { ItemBody } from './types.js';
 
 export type EnvLike = Readonly<Record<string, string | undefined>>;
@@ -114,15 +115,6 @@ export function signatureFlagRequested(args: ParsedArgs): boolean {
   const v = args.str('signature');
   if (v === undefined) return args.bool('signature');
   return !(v.trim() === '' || /^(false|0|no|off)$/i.test(v.trim()));
-}
-
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** Append a plain-text signature with the RFC 3676 delimiter. */
