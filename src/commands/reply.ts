@@ -144,6 +144,18 @@ async function runHtmlFlow(
     ctx.out('');
     ctx.out('--- Step 2: patch body (representative; actual body depends on Exchange draft) ---');
     ctx.out(renderRequest(specs.patchSpec));
+    if (specs.inlineImageCount > 0) {
+      ctx.out('');
+      ctx.out(
+        `--- Step 2b: attach ${specs.inlineImageCount} inline signature image(s) ---`,
+      );
+      for (const img of signature.inlineAttachments ?? []) {
+        ctx.out(
+          `  • ${img.name}  cid:${img.contentId}  ` +
+            `${Math.ceil((img.contentBytes.length * 3) / 4)} bytes`,
+        );
+      }
+    }
     ctx.out('');
     ctx.out('--- Step 3: send draft ---');
     ctx.out(renderRequest(specs.sendSpec));

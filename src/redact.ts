@@ -14,6 +14,8 @@ const SECRET_KEYS = new Set([
   'refreshtoken',
   'authorization',
   'code_verifier',
+  // base64-encoded file/attachment content — never print in dry-run output
+  'contentbytes',
 ]);
 
 /** JWTs and long opaque bearer blobs. */
