@@ -71,7 +71,7 @@ describe('createAuthenticator — read-only grant mode', () => {
   // are the scope sets we intend to request, so an accidental edit to
   // DEFAULT_SCOPES/READONLY_SCOPES must FAIL here rather than be followed.
   // MailboxSettings.ReadWrite: `rules create` writes inbox rules.
-  // Contacts.Read: the `contacts` command (read-only).
+  // Contacts.ReadWrite: the `contacts` command (read and write).
   // Calendars.Read / Files.Read.All / Sites.Read.All: read-only calendar and
   // OneDrive/SharePoint access for Graph calls made with the same token.
   const FULL_SCOPE_SET = [
@@ -80,7 +80,7 @@ describe('createAuthenticator — read-only grant mode', () => {
     'Mail.ReadWrite',
     'Mail.Send',
     'MailboxSettings.ReadWrite',
-    'Contacts.Read',
+    'Contacts.ReadWrite',
     'Calendars.Read',
     'Files.Read.All',
     'Sites.Read.All',

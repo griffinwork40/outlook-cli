@@ -67,7 +67,7 @@ describe('move.denySenders', () => {
 
   it('stale by built_at is refused', async () => {
     await writeJson('protected.json', {
-      addresses: [],
+      addresses: ['stale@example.com'],
       built_at: new Date(Date.now() - 25 * HOUR).toISOString(),
     });
     const { ctx, calls } = await setup(['MSG1', '--folder', REVIEW], 'move', { sender: 'x@example.org' });
@@ -77,7 +77,7 @@ describe('move.denySenders', () => {
   });
 
   it('stale by mtime (no built_at) is refused', async () => {
-    const file = await writeJson('protected.json', []);
+    const file = await writeJson('protected.json', ['stale@example.com']);
     const old = new Date(Date.now() - 48 * HOUR);
     await utimes(file, old, old);
     const { ctx } = await setup(['MSG1', '--folder', REVIEW], 'move', { sender: 'x@example.org' });
@@ -122,7 +122,7 @@ describe('--dry-run with a policy', () => {
   });
 
   it('JSON: a stale deny list shows up as a refusal in the preview', async () => {
-    await writeJson('protected.json', { addresses: [], built_at: '2000-01-01T00:00:00Z' });
+    await writeJson('protected.json', { addresses: ['stale@example.com'], built_at: '2000-01-01T00:00:00Z' });
     const { ctx, out } = await setup(['MSG1', '--folder', REVIEW, '--dry-run', '--json'], 'move');
 
     await moveCommand.handler(ctx);
@@ -212,5 +212,21 @@ describe('validatePolicy', () => {
         move: { denySenders: { file: 'p.json', maxAgeHours: 1, destinations: [] } },
       }),
     ).toContain('destinations');
+  });
+});
+
+describe('loadDenyList — empty addresses (finding 6: fail-closed)', () => {
+  it('rejects a plain empty array (fail-closed: empty list cannot vouch a sender is absent)', async () => {
+    await writeJson('protected.json', []);
+    const { ctx } = await setup(['MSG1', '--folder', REVIEW], 'move', { sender: 'x@example.org' });
+    const error = await expectRefused(moveCommand.handler(ctx), 'move.denySenders');
+    expect(error.message).toContain('non-empty');
+  });
+
+  it('rejects an object with an empty addresses array', async () => {
+    await writeJson('protected.json', { addresses: [], built_at: new Date().toISOString() });
+    const { ctx } = await setup(['MSG1', '--folder', REVIEW], 'move', { sender: 'x@example.org' });
+    const error = await expectRefused(moveCommand.handler(ctx), 'move.denySenders');
+    expect(error.message).toContain('non-empty');
   });
 });

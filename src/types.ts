@@ -110,7 +110,7 @@ export interface UserProfile {
 /**
  * Microsoft Graph v1.0 contact resource (GET /me/contacts).
  * Users must re-login (`outlook auth logout && outlook auth login`) to
- * pick up the new Contacts.Read scope after upgrading to this version.
+ * pick up the new Contacts.ReadWrite scope after upgrading to this version.
  */
 export interface Contact {
   id: string;
@@ -270,7 +270,7 @@ export const DEFAULT_SCOPES = [
   'Mail.ReadWrite',
   'Mail.Send',
   'MailboxSettings.ReadWrite',
-  'Contacts.Read',
+  'Contacts.ReadWrite',
   'Calendars.Read',
   'Files.Read.All',
   'Sites.Read.All',
