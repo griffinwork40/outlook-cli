@@ -83,12 +83,23 @@ export function createAuthenticator(
     }
 
     // Refresh with the scope set this grant was ORIGINALLY obtained under.
-    // Hardcoding DEFAULT_SCOPES here would ask Azure to upgrade a read-only
-    // session to full read/write on its next refresh, silently undoing the
-    // least-privilege choice the user made at login. A `--scopes` login
-    // records its exact set in grantScopes, which wins over the mode default.
+    // Priority (highest to lowest):
+    //   1. cached.grantScopes — set by `--scopes` login; exact list, already
+    //      includes offline_access.
+    //   2. cached.scope — the scope string Azure echoed back at login time;
+    //      used for tokens from older builds (e.g. a fork binary that added
+    //      Contacts.ReadWrite before main did). offline_access is stripped by
+    //      Azure on echo, so we re-add it here.  This prevents a binary
+    //      upgrade from silently narrowing a grant that the user obtained under
+    //      a wider scope set.
+    //   3. scopesForMode(mode) — fallback for legacy tokens that pre-date
+    //      cached.scope, or for tokens where Azure echoed an empty string.
+    //
+    // A `--readonly` session must NEVER widen: when mode is 'readonly' the
+    // cached.scope will already be the read-only set (Azure echoes back only
+    // what was granted), so rule 2 is safe — it cannot escalate.
     const mode = cached.mode ?? 'full';
-    const scopes = cached.grantScopes ?? scopesForMode(mode);
+    const scopes = cached.grantScopes ?? scopesFromCachedScope(cached.scope) ?? scopesForMode(mode);
     const tokenResponse = await exchangeRefreshToken(
       cfg,
       cached.refreshToken,
@@ -273,6 +284,24 @@ function isTokenResponse(value: unknown): value is TokenResponse {
   if (typeof value !== 'object' || value === null) return false;
   const v = value as Record<string, unknown>;
   return typeof v['access_token'] === 'string' && typeof v['expires_in'] === 'number';
+}
+
+/**
+ * Parses a cached `scope` string (the value Azure echoed back at login) into
+ * a scope list suitable for a refresh request.
+ *
+ * Returns `undefined` when the input is absent or empty so the caller can fall
+ * through to the `scopesForMode` default.  Otherwise ensures `offline_access`
+ * is present — Azure strips it from the echoed scope string even when the
+ * original request included it, so a refresh without it would lose the rotated
+ * refresh token.
+ */
+function scopesFromCachedScope(scope: string | undefined): readonly string[] | undefined {
+  if (!scope) return undefined;
+  const parts = scope.split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return undefined;
+  if (!parts.includes('offline_access')) parts.unshift('offline_access');
+  return parts;
 }
 
 function defaultSleep(ms: number): Promise<void> {
