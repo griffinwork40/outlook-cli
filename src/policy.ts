@@ -178,10 +178,14 @@ export async function loadDenyList(
     addresses = parsed['addresses'];
     builtAt = parsed['built_at'];
   }
-  if (!isStringList(addresses, true)) {
+  // An empty addresses array is rejected (fail-closed): an operator who writes
+  // `{"addresses":[]}` has not configured a list that can vouch any sender is
+  // absent; treat it the same as a missing or corrupt file. If the intent is
+  // "allow all moves to this destination", remove the denySenders rule entirely.
+  if (!isStringList(addresses, false)) {
     return {
       ok: false,
-      reason: `deny list ${file} must be an array of addresses or an object with an "addresses" array`,
+      reason: `deny list ${file} must be a non-empty array of addresses or an object with a non-empty "addresses" array (an empty list is rejected — omit denySenders to allow all senders)`,
     };
   }
 

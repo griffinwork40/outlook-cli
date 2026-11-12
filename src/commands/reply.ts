@@ -137,21 +137,43 @@ async function runHtmlFlow(
   });
 
   if (ctx.dryRun) {
+    const [v1, v2, v3] = await Promise.all([
+      dryRunVerdict(ctx, specs.createSpec),
+      dryRunVerdict(ctx, specs.patchSpec),
+      dryRunVerdict(ctx, specs.sendSpec),
+    ]);
+
+    if (ctx.json) {
+      ctx.out(
+        JSON.stringify(
+          {
+            dryRun: true,
+            steps: [
+              { step: 1, label: 'create draft', request: specs.createSpec, ...(v1 === undefined ? {} : { policy: v1 }) },
+              { step: 2, label: 'patch body', request: specs.patchSpec, ...(v2 === undefined ? {} : { policy: v2 }) },
+              { step: 3, label: 'send draft', request: specs.sendSpec, ...(v3 === undefined ? {} : { policy: v3 }) },
+            ],
+          },
+          null,
+          2,
+        ),
+      );
+      return;
+    }
+
     ctx.out('DRY RUN — nothing was sent. The three requests below are what would go out:');
     ctx.out('');
     ctx.out('--- Step 1: create draft ---');
     ctx.out(renderRequest(specs.createSpec));
+    if (v1 !== undefined) { ctx.out(''); ctx.out(renderVerdict(v1)); }
     ctx.out('');
     ctx.out('--- Step 2: patch body (representative; actual body depends on Exchange draft) ---');
     ctx.out(renderRequest(specs.patchSpec));
+    if (v2 !== undefined) { ctx.out(''); ctx.out(renderVerdict(v2)); }
     ctx.out('');
     ctx.out('--- Step 3: send draft ---');
     ctx.out(renderRequest(specs.sendSpec));
-    const verdict = await dryRunVerdict(ctx, specs.sendSpec);
-    if (verdict !== undefined) {
-      ctx.out('');
-      ctx.out(renderVerdict(verdict));
-    }
+    if (v3 !== undefined) { ctx.out(''); ctx.out(renderVerdict(v3)); }
     return;
   }
 
