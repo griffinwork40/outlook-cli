@@ -24,6 +24,7 @@ import { readFile } from 'node:fs/promises';
 import type { ParsedArgs } from './args.js';
 import { UsageError } from './errors.js';
 import { escapeHtml } from './htmlUtils.js';
+import { processHtmlSignature, type InlineImageAttachment } from './signatureHtml.js';
 import type { ItemBody } from './types.js';
 
 export type EnvLike = Readonly<Record<string, string | undefined>>;
@@ -37,6 +38,8 @@ export const TEXT_DELIMITER = '-- ';
 export interface Signature {
   text?: string;
   html?: string;
+  /** Inline image attachments extracted from an Outlook-exported HTML signature. */
+  inlineAttachments?: InlineImageAttachment[];
 }
 
 function trimmed(value: string | undefined): string | undefined {
@@ -92,7 +95,11 @@ export async function resolveSignature(
       return undefined; // --signature=false and friends
     }
     const content = await readSignatureFile(path, '--signature');
-    return isHtmlPath(path) ? { html: content } : { text: content };
+    if (isHtmlPath(path)) {
+      const { html, inlineAttachments } = processHtmlSignature(content);
+      return inlineAttachments.length > 0 ? { html, inlineAttachments } : { html };
+    }
+    return { text: content };
   }
 
   const textPath = trimmed(env[SIGNATURE_TEXT_ENV]);
@@ -104,7 +111,10 @@ export async function resolveSignature(
     sig.text = await readSignatureFile(textPath, SIGNATURE_TEXT_ENV);
   }
   if (htmlPath !== undefined) {
-    sig.html = await readSignatureFile(htmlPath, SIGNATURE_HTML_ENV);
+    const raw = await readSignatureFile(htmlPath, SIGNATURE_HTML_ENV);
+    const { html, inlineAttachments } = processHtmlSignature(raw);
+    sig.html = html;
+    if (inlineAttachments.length > 0) sig.inlineAttachments = inlineAttachments;
   }
   return sig;
 }

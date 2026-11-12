@@ -49,6 +49,14 @@ export const sendCommand: CommandSpec = {
     const signature = await resolveSignature(ctx.args, ctx.env);
     signMessage(message, signature, ctx.args);
 
+    // Merge any inline signature images into the message attachment list.
+    if (signature?.inlineAttachments?.length) {
+      message.attachments = [
+        ...(message.attachments ?? []),
+        ...signature.inlineAttachments,
+      ];
+    }
+
     const payload = {
       message,
       saveToSentItems: saveToSentItems(ctx.args),
@@ -73,6 +81,7 @@ export const sendCommand: CommandSpec = {
         attachments: message.attachments?.length ?? 0,
         savedToSentItems: payload.saveToSentItems,
         signatureApplied: signature !== undefined,
+        inlineSignatureImages: signature?.inlineAttachments?.length ?? 0,
       },
       () => `Sent "${message.subject}" to ${to}`,
     );

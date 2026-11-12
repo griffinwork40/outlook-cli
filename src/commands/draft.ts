@@ -45,6 +45,14 @@ async function createDraft(ctx: CommandContext): Promise<void> {
   const signature = await resolveSignature(ctx.args, ctx.env);
   signMessage(message, signature, ctx.args);
 
+  // Merge any inline signature images into the message attachment list.
+  if (signature?.inlineAttachments?.length) {
+    message.attachments = [
+      ...(message.attachments ?? []),
+      ...signature.inlineAttachments,
+    ];
+  }
+
   const spec = ctx.client.buildSpec('POST', '/me/messages', message);
 
   const created = await guardMutation(ctx, spec, () =>
@@ -55,7 +63,11 @@ async function createDraft(ctx: CommandContext): Promise<void> {
 
   emit(
     ctx,
-    { ...created, signatureApplied: signature !== undefined },
+    {
+      ...created,
+      signatureApplied: signature !== undefined,
+      inlineSignatureImages: signature?.inlineAttachments?.length ?? 0,
+    },
     () => `Draft created: ${created.id}\nSend it with:  outlook draft send ${created.id}`,
   );
 }

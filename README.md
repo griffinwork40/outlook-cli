@@ -253,6 +253,10 @@ echo 'OUTLOOK_SIGNATURE_HTML_FILE=/Users/you/.config/outlook/signature.html' >> 
 - **HTML signature files are trusted and inserted verbatim** (no sanitisation).
   Treat them like the token cache: restrict write access to the file owner
   (`chmod 600 ~/sig.html`). Do not point the variable at world-writable paths.
+- **Outlook-exported `.htm` files** (from `%APPDATA%\Microsoft\Signatures\`) work
+  directly: the CLI extracts the `<body>` content (discarding `<head>`/`<style>`),
+  rewrites embedded `data:image/…;base64,…` URIs to `cid:` references, and attaches
+  the images as inline `fileAttachment`s so mail clients render them correctly.
 
 ### Drafts
 | Command | Purpose |

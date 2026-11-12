@@ -53,6 +53,8 @@ export interface ReplyDraftSpecs {
   createSpec: RequestSpec;
   patchSpec: RequestSpec;
   sendSpec: RequestSpec;
+  /** Number of inline signature images that will be attached (for dry-run display). */
+  inlineImageCount: number;
 }
 
 /**
@@ -82,8 +84,9 @@ export function buildReplyDraftSpecs(
   const patchSpec = client.buildSpec('PATCH', '/me/messages/{draftId}', patchPreview);
 
   const sendSpec = client.buildSpec('POST', '/me/messages/{draftId}/send', undefined);
+  const inlineImageCount = opts.signature.inlineAttachments?.length ?? 0;
 
-  return { createSpec, patchSpec, sendSpec };
+  return { createSpec, patchSpec, sendSpec, inlineImageCount };
 }
 
 /**
@@ -135,6 +138,15 @@ export async function executeReplyDraft(
       `/me/messages/${encodeURIComponent(draftId)}`,
       patchBody,
     );
+
+    // Step 2b: attach inline signature images (if any).
+    const inlineImages = opts.signature.inlineAttachments ?? [];
+    for (const attachment of inlineImages) {
+      await client.post<unknown>(
+        `/me/messages/${encodeURIComponent(draftId)}/attachments`,
+        attachment,
+      );
+    }
 
     // Step 3: send the patched draft.
     stepLabel = 'send draft';
