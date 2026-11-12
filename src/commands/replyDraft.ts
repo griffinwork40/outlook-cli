@@ -27,6 +27,7 @@
 
 import type { GraphClient } from '../client.js';
 import { OutlookCliError } from '../errors.js';
+import { escapeHtml, stripHtmlTags } from '../htmlUtils.js';
 import {
   TEXT_DELIMITER,
   type Signature,
@@ -45,10 +46,13 @@ export interface ReplyDraftOptions {
   toRecipients?: Array<{ emailAddress: { address: string; name?: string } }>;
 }
 
+/** The three RequestSpecs produced for --dry-run display. */
+export type RequestSpec = ReturnType<GraphClient['buildSpec']>;
+
 export interface ReplyDraftSpecs {
-  createSpec: ReturnType<GraphClient['buildSpec']>;
-  patchSpec: ReturnType<GraphClient['buildSpec']>;
-  sendSpec: ReturnType<GraphClient['buildSpec']>;
+  createSpec: RequestSpec;
+  patchSpec: RequestSpec;
+  sendSpec: RequestSpec;
 }
 
 /**
@@ -110,6 +114,10 @@ export async function executeReplyDraft(
   }
 
   // Steps 2+3: patch then send, deleting the draft on any failure.
+  //
+  // We use two separate try/catch blocks so the error message can name the
+  // step that failed ("apply signature" vs "send draft").
+  let stepLabel = 'apply signature to draft';
   try {
     // Step 2: read back the draft body Exchange generated, then patch.
     const draftFull = await client.get<Message>(
@@ -129,6 +137,7 @@ export async function executeReplyDraft(
     );
 
     // Step 3: send the patched draft.
+    stepLabel = 'send draft';
     await client.post<void>(
       `/me/messages/${encodeURIComponent(draftId)}/send`,
       undefined,
@@ -149,14 +158,14 @@ export async function executeReplyDraft(
       const cleanMsg =
         cleanupErr instanceof Error ? cleanupErr.message : String(cleanupErr);
       throw new OutlookCliError(
-        `Failed to send reply (${base}). ` +
+        `Failed to ${stepLabel} (${base}). ` +
           `Cleanup also failed (${cleanMsg}). ` +
-          'A draft was left behind (ORPHAN) — run `outlook draft list` to find and delete it.',
+          `A draft was left behind [orphaned-draft] (id: ${draftId}) — run \`outlook draft list\` to find and delete it.`,
       );
     }
 
     throw new OutlookCliError(
-      `Failed to send reply (${base}). ` +
+      `Failed to ${stepLabel} (${base}). ` +
         'The draft was deleted. No message was sent.',
     );
   }
@@ -211,11 +220,11 @@ function insertHtml(draftContent: string, userText: string, sig: Signature): str
     );
   }
 
-  // Fall back: inject at the start of <body>.
-  const bodyMatch = [...draftContent.matchAll(/<body[^>]*>/gi)];
-  const lastBody = bodyMatch[bodyMatch.length - 1];
-  if (lastBody?.index !== undefined) {
-    const afterBody = lastBody.index + lastBody[0].length;
+  // Fall back: inject at the start of <body> (use first match — that is the
+  // document body; subsequent matches would be inside quoted content).
+  const firstBodyMatch = /<body[^>]*>/i.exec(draftContent);
+  if (firstBodyMatch?.index !== undefined) {
+    const afterBody = firstBodyMatch.index + firstBodyMatch[0].length;
     return (
       draftContent.slice(0, afterBody) +
       insertion +
@@ -236,8 +245,10 @@ function insertHtml(draftContent: string, userText: string, sig: Signature): str
  */
 function insertText(draftContent: string, userText: string, sig: Signature): string {
   if (sig.text === undefined) {
-    // HTML-only signature in a text draft: fall back to escaping the HTML.
-    const stripped = (sig.html ?? '').replace(/<[^>]*>/g, '').trim();
+    // HTML-only signature in a text draft: strip tags with a quote-aware
+    // tokenizer so that a `>` inside a quoted attribute value is handled
+    // correctly (e.g. `<a title="a>b">`).
+    const stripped = stripHtmlTags(sig.html ?? '').trim();
     return buildTextInsertion(draftContent, userText, stripped);
   }
   return buildTextInsertion(draftContent, userText, sig.text.trimEnd());
@@ -265,11 +276,4 @@ function buildTextInsertion(
   return `${newContent}\n\n${draftContent}`;
 }
 
-function escapeHtml(s: string): string {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
-}
+

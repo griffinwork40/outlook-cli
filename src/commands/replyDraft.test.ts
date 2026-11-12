@@ -207,13 +207,16 @@ describe('executeReplyDraft — text draft body', () => {
     expect(content).not.toContain('<b>');
     expect(content).toContain('Alice');
   });
+
+  // Quote-aware stripping and first-<body> injection tests are in
+  // replyDraft.insertion.test.ts (extracted to stay under the LOC ceiling).
 });
 
 // ---------------------------------------------------------------------------
 // Failure / cleanup
 // ---------------------------------------------------------------------------
 describe('executeReplyDraft — cleanup on failure', () => {
-  it('deletes the draft and reports a clean error when PATCH fails', async () => {
+  it('deletes the draft and reports a step-specific error when PATCH fails', async () => {
     const { client } = makeClient();
     vi.spyOn(client, 'post').mockImplementation(async (path: string) => {
       if (path.includes('/createReply')) return { id: 'DRAFTFAIL' } as Message as never;
@@ -235,11 +238,13 @@ describe('executeReplyDraft — cleanup on failure', () => {
 
     expect(err).toBeInstanceOf(OutlookCliError);
     expect((err as Error).message).toContain('patch error');
+    // Step-specific wording distinguishes PATCH failure from send failure
+    expect((err as Error).message).toContain('Failed to apply signature to draft');
     expect((err as Error).message).toContain('draft was deleted');
     expect(del).toHaveBeenCalledWith(expect.stringContaining('DRAFTFAIL'));
   });
 
-  it('deletes the draft and reports a clean error when send fails', async () => {
+  it('deletes the draft and reports a step-specific error when send fails', async () => {
     const { client } = makeClient();
     vi.spyOn(client, 'post').mockImplementation(async (path: string) => {
       if (path.includes('/createReply')) return { id: 'DRAFTFAIL2' } as Message as never;
@@ -261,17 +266,19 @@ describe('executeReplyDraft — cleanup on failure', () => {
 
     expect(err).toBeInstanceOf(OutlookCliError);
     expect((err as Error).message).toContain('send error');
+    // Step-specific wording distinguishes send failure from PATCH failure
+    expect((err as Error).message).toContain('Failed to send draft');
     expect(del).toHaveBeenCalledWith(expect.stringContaining('DRAFTFAIL2'));
   });
 
   it('surfaces draft id in error when cleanup also fails', async () => {
     const { client } = makeClient();
     vi.spyOn(client, 'post').mockImplementation(async (path: string) => {
-      if (path.includes('/createReply')) return { id: 'ORPHAN' } as Message as never;
+      if (path.includes('/createReply')) return { id: 'DRAFT_CLEANUP' } as Message as never;
       throw new Error('send error');
     });
     vi.spyOn(client, 'get').mockResolvedValue({
-      id: 'ORPHAN',
+      id: 'DRAFT_CLEANUP',
       body: { contentType: 'html', content: '<body></body>' },
     } as Message as never);
     vi.spyOn(client, 'patch').mockResolvedValue(undefined as never);
@@ -285,7 +292,10 @@ describe('executeReplyDraft — cleanup on failure', () => {
     }).catch((e: unknown) => e);
 
     expect(err).toBeInstanceOf(OutlookCliError);
-    expect((err as Error).message).toContain('ORPHAN');
+    // Assert on the draft id surfaced in the message (not a production literal)
+    expect((err as Error).message).toContain('DRAFT_CLEANUP');
+    // Assert on the real orphan message text (not "(ORPHAN)" literal)
+    expect((err as Error).message).toContain('[orphaned-draft]');
     expect((err as Error).message).toContain('draft was left behind');
   });
 });
@@ -294,23 +304,8 @@ describe('executeReplyDraft — cleanup on failure', () => {
 // --dry-run via the full command handler
 // ---------------------------------------------------------------------------
 describe('--dry-run with HTML signature', () => {
-  async function makeHtmlSigCtx(argv: string[]) {
-    // Write a temp HTML sig file isn't needed — we mock resolveSignature
-    // indirectly by setting up the env with a real file via makeCtx.
-    // Instead, use makeCtx with a spy on client methods.
-    const { ctx, client, fetchImpl, out } = makeCtx(argv);
-    return { ctx, client, fetchImpl, out };
-  }
-
-  it('reply --dry-run (text sig, no-html path) shows all three requests without network calls', async () => {
+  it('reply --dry-run (text sig) shows DRY RUN without network calls', async () => {
     const { ctx, fetchImpl, out } = makeCtx(['MSG1', '--body', 'hi', '--dry-run']);
-    // Inject html sig directly by overriding resolveSignature via env isn't
-    // straightforward, so we test the replyDraft flow explicitly via
-    // buildReplyDraftSpecs and the command renderRequest integration.
-    // Patch the handler to use a real html-sig path by calling runHtmlFlow
-    // indirectly through the command with a mocked sig resolution:
-    // We test dry-run via the existing guardMutation path for the comment
-    // flow — the html flow dry-run is tested directly below.
     await replyCommand.handler(ctx);
     expect(fetchImpl).not.toHaveBeenCalled();
     expect(text(out)).toContain('DRY RUN');
