@@ -242,8 +242,7 @@ echo 'OUTLOOK_SIGNATURE_HTML_FILE=/Users/you/.config/outlook/signature.html' >> 
 - **Plain-text bodies** get the RFC 3676 `-- ` delimiter and the text signature.
   **HTML bodies** (`--html`) get the HTML signature, or the text one escaped.
   An HTML-only setup with a plain-text body is an error, not a silent skip.
-- **Replies and forwards** use Graph's plain-text `comment`, so they take the
-  text signature, placed above the quoted original.
+- **Replies and forwards** use Graph's one-shot `comment` when only a text signature is configured. With an HTML signature they create a draft reply, patch in your text and the signature above the quoted original, then send it (three Graph calls instead of one). If the patch or send step fails, the draft is deleted; if the delete also fails, the error message tells you to run `outlook draft list` to find and remove it. `--dry-run` shows all three requests, and on success `--json` includes `draftId`.
 - **No `--body`:** a reply, reply-all or forward without `--body` still sends the signature on its own, as Outlook does when you sign an empty reply.
 - **`draft update` never adds one** (it would duplicate the create-time copy).
 - **Visible, never silent:** `--dry-run` shows the appended text and `--json`
